@@ -296,6 +296,7 @@ stock ConvertToSeconds(TimeUnit:type, value) {
 
 stock ReturnDate(timestamp, _form=0)
 {
+	timestamp -= 10800;
 
 	new 
 		year = 1970, 
@@ -342,6 +343,7 @@ stock ReturnDate(timestamp, _form=0)
 		case 3: format(str, sizeof str, "%d %c%c%c %d, %02d:%02d", day+1,names_of_month[month][0],names_of_month[month][1],names_of_month[month][2], year,hourt,mins);
 		case 4: format(str, sizeof str, "%s %02d, %d", names_of_month[month], day+1,year);
 		case 5: format(str, sizeof str, "%02d-%02d-%d %02d:%02d:%02d", day+1, month+1, year, hourt, mins, sec);
+		case 6: format(str, sizeof str, "%02d/%s/%d", day+1, names_of_month[month], year);
 		default: format(str, sizeof str, "%02d/%02d/%d %02d:%02d:%02d", day+1, month+1, year, hourt, mins, sec);
 	}
 

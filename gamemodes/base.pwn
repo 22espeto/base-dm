@@ -14,6 +14,7 @@
 #include <strlib>
 #include <slcrypt>
 #include <timestamp>
+#include <crashdetect>
 
 #include <YSI_Coding\y_timers>
 #include <YSI_Coding\y_va>
@@ -27,14 +28,29 @@
 #include <sscanf2>
 #include <easydialog>
 
+#include "modules/textdraws/textdraws.inc"
+
+#include "modules/global/colors.inc"
 #include "modules/global/defines.inc"
 #include "modules/global/variables.inc"
+
+#include "modules/arena/h_arena.inc"
+
 #include "modules/functions.inc"
-#include "modules/auth.inc"
+#include "modules/ban/functions.inc"
+#include "modules/account.inc"
+
+#include "modules/arena/functions.inc"
+#include "modules/arena/arena.inc"
+
+#include "modules/commands/commands.inc"
+#include "modules/commands/general.inc"
+#include "modules/commands/admin.inc"
+
 
 main()
 {
-    bcrypt_set_thread_limit(3);
+    bcrypt_set_thread_limit(1);
 } 
 
 public OnGameModeInit()
@@ -57,6 +73,11 @@ public OnGameModeInit()
 	DisableInteriorEnterExits();
     SetDamageSounds(0, 0);
     SetRespawnTime(2000);
+
+    for (new i; i < sizeof AvailableSkins; i ++){
+        AddPlayerClass(AvailableSkins[i], 411.1662, 2534.0742, 19.1484, 0.1074, 0, 0, 0, 0, 0, 0);
+    }
+
     return true;
 }
 
@@ -67,35 +88,67 @@ public OnGameModeExit()
 
 public OnPlayerConnect(playerid)
 {
+    InicializePlayer(playerid);
     GetPlayerName(playerid, playerInfo[playerid][e_PlayerName], MAX_PLAYER_NAME + 1);
     GetPlayerIp(playerid, playerInfo[playerid][e_PlayerLastIp]);
-
-    LoadPlayerAccount(playerid);
-    return true;
-}
-
-public OnPlayerDisconnect(playerid)
-{
+    ForceRequestClass(playerid);
     return true;
 }
 
 public OnPlayerRequestClass(playerid, classid)
-{
+{    
+    if (!playerInfo[playerid][e_PlayerLogged] && !inClassSelection[playerid]){
+        LoadPlayerAccount(playerid);
+    }
+
+    inClassSelection[playerid] = true;
+
+    SetPlayerSkin(playerid, !classid ? playerInfo[playerid][e_PlayerSkin] : AvailableSkins[classid]);
     return true;
 }
 
 public OnPlayerRequestSpawn(playerid)
 {
+    playerInfo[playerid][e_PlayerSkin] = GetPlayerSkin(playerid);
+    return true;
+}
+
+public OnPlayerDisconnect(playerid, reason)
+{
+    if (!playerInfo[playerid][e_PlayerLogged]){
+        return false;
+    }
+
+    SendClientMessageToAll(COLOR_GRAY, "%s has left the server", playerInfo[playerid][e_PlayerName]);
     return true;
 }
 
 public OnPlayerSpawn(playerid)
 {
-    SetPlayerInterior(playerid, 0);
-    SetPlayerWorldBounds(playerid, 20000.0, -20000.0, 20000.0, -20000.0);
-
     if (IsPlayerInAnyVehicle(playerid)){
         RemovePlayerFromVehicle(playerid);
+    }
+
+    SetPlayerInterior(playerid, 0);
+    SetPlayerWorldBounds(playerid, 20000.0, -20000.0, 20000.0, -20000.0);
+    SetPlayerSkin(playerid, playerInfo[playerid][e_PlayerSkin]);
+    SetPlayerColor(playerid, COLOR_GRAY);
+    SpawnPlayerOnArena(playerid);
+
+    if (!GetPVarInt(playerid, "alreadySpawned"))
+    {
+        ShowTextdraws(playerid);
+
+        if (arenaInfo[e_ArenaRunning]){
+            ZoneNumberFlashForPlayer(playerid, arenaInfo[e_ArenaId], 0xDB0000FF);
+        }
+        else
+        {
+            TogglePlayerControllable(playerid, false);
+            ShowArenaScoreboard(playerid);
+        }
+
+        SetPVarInt(playerid, "alreadySpawned", 1);
     }
 
     return true;
@@ -103,19 +156,41 @@ public OnPlayerSpawn(playerid)
 
 public OnPlayerText(playerid, text[])
 {
+    if (!playerInfo[playerid][e_PlayerLogged]){
+        return false;
+    }
+
+    SendClientMessageToAll(-1, "** %s (%d): %s", playerInfo[playerid][e_PlayerName], playerid, text);
     return false;
 }
 
 public OnPlayerKeyStateChange(playerid, newkeys, oldkeys)
 {
+    if (newkeys == KEY_CTRL_BACK)
+    {
+        if (Iter_Contains(ArenaPlayers, playerid)){
+            SpawnPlayer(playerid);
+        }
+    }
+
     return true;
 }
 
 public OnPlayerDeath(playerid, killerid, reason)
 {
-    if(playerid == INVALID_PLAYER_ID && killerid == INVALID_PLAYER_ID)
-    {
+    if (playerid == INVALID_PLAYER_ID && killerid == INVALID_PLAYER_ID){
         return false;
+    }
+
+    if (arenaInfo[e_ArenaRunning] && Iter_Contains(ArenaPlayers, killerid) && Iter_Contains(ArenaPlayers, playerid))
+    {
+        SetPlayerChatBubble(playerid, "{ccc793}Killed by: {ffffff}%s", -1, 30.0, 5000, playerInfo[killerid][e_PlayerName]);
+    
+        playerArenaInfo[killerid][e_ArenaKills] ++;
+        playerArenaInfo[playerid][e_ArenaDeaths] ++;
+
+        playerInfo[killerid][e_PlayerKills] ++;
+        playerInfo[playerid][e_PlayerDeaths] ++;
     }
 
     return true;
@@ -128,7 +203,7 @@ public OnPlayerWeaponShot(playerid, weaponid, hittype, hitid, Float:fX, Float:fY
 
 public OnPlayerDamage(&playerid, &Float:amount, &issuerid, &weapon, &bodypart)
 {
-    if (issuerid == INVALID_PLAYER_ID || playerid == INVALID_PLAYER_ID || weapon == WEAPON_COLLISION){
+    if (issuerid == INVALID_PLAYER_ID || playerid == INVALID_PLAYER_ID || weapon == WEAPON_COLLISION || !playerInfo[issuerid][e_PlayerLogged]){
         return false;
     }
 
@@ -146,6 +221,11 @@ public OnPlayerDamage(&playerid, &Float:amount, &issuerid, &weapon, &bodypart)
 		}
 	}
     
+    if (arenaInfo[e_ArenaRunning] && Iter_Contains(ArenaPlayers, issuerid))
+    {
+        playerArenaInfo[issuerid][e_ArenaDamage] += floatround(amount);
+    }
+
     return true;
 }
 
