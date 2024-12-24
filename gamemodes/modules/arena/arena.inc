@@ -43,7 +43,7 @@ task ArenaSecondTimer[1000]()
         }
         
         if (arenaInfo[e_ArenaMinutes] == 0 && arenaInfo[e_ArenaSeconds] == 0){
-            FinishArena();
+            FinishArena(Iter_Random(Arenas));
         }
     }
 

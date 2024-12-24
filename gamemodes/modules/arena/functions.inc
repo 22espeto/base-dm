@@ -37,17 +37,23 @@ stock CreateArenaZones()
     }
 }
 
+stock IsPlayerInArena(playerid)
+{
+    return Iter_Contains(ArenaPlayers, playerid) ? true : false;
+}
+
 stock GivePlayerWeapons(playerid)
 {
     ResetPlayerWeapons(playerid);
 
-    GivePlayerWeapon(playerid, WEAPON_SHOTGUN, 700);
-    GivePlayerWeapon(playerid, WEAPON_DEAGLE, 700);
+    for (new i = MAX_GUNMENU_SLOTS - 1; i >= 0; i --){
+        GivePlayerWeapon(playerid, playerInfo[playerid][e_PlayerWeapons][i], 700);
+    }
 }
 
 stock SpawnPlayerOnArena(playerid)
 {
-    if (!Iter_Contains(ArenaPlayers, playerid)){
+    if (!IsPlayerInArena(playerid)){
         Iter_Add(ArenaPlayers, playerid);
     }
 
@@ -56,12 +62,21 @@ stock SpawnPlayerOnArena(playerid)
     SetPlayerPos(playerid, ArenaSpawns[arenaId][spawnIdx][0], ArenaSpawns[arenaId][spawnIdx][1], ArenaSpawns[arenaId][spawnIdx][2]);
     SetPlayerFacingAngle(playerid, ArenaSpawns[arenaId][spawnIdx][3]);
     SetCameraBehindPlayer(playerid);
-    SetPlayerVirtualWorld(playerid, ARENA_VW);
-
+    
     SetPlayerHealth(playerid, 100);
     SetPlayerArmour(playerid, 100);
+    
 
-    GivePlayerWeapons(playerid);
+    if (!GetPVarInt(playerid, "firstTimeGunmenu"))
+    {
+        GivePlayerWeapons(playerid);
+        SetPlayerVirtualWorld(playerid, ARENA_VW);
+    }
+    else
+    {
+        ShowGunMenu(playerid);
+        DeletePVar(playerid, "firstTimeGunmenu");
+    }
 }
 
 stock ShowArenaScoreboard(playerid)
@@ -78,15 +93,14 @@ stock HideArenaScoreboard(playerid)
     }
 }
 
-stock FinishArena()
+stock FinishArena(nextArena)
 {
     arenaInfo[e_ArenaRunning] = false;
     arenaInfo[e_ArenaMinutes] = 0;
     arenaInfo[e_ArenaSeconds] = 0;
-
+    
     ZoneNumberStopFlashForAll(arenaInfo[e_ArenaId]);
-
-    SendClientMessageToAll(COLOR_GRAY, "(info) Arena %s #%d is over. The next one will start soon.", ArenaNames[arenaInfo[e_ArenaId]], arenaInfo[e_ArenaId]);
+    SendClientMessageToAll(-1, "The war in {ff0000}%s {ffffff}is over. Next Arena: {ff0000}%s.", ArenaNames[arenaInfo[e_ArenaId]], ArenaNames[nextArena]);
 
     new g_PlayerArray<TopPlayers>;
 
@@ -102,7 +116,8 @@ stock FinishArena()
 	}
 
     new str[4][50 * 5];
-    for (new i; i < 5; i ++)
+
+    for (new i; i < 10; i ++)
 	{
 		if (IsPlayerConnected(TopPlayers[i]) && playerArenaInfo[TopPlayers[i]][e_ArenaDamage] > 0)
 		{
@@ -115,10 +130,9 @@ stock FinishArena()
 		}
 	}
 
-	TextDrawSetString(TD_ArenaScoreboard[17], str[0]);
-	TextDrawSetString(TD_ArenaScoreboard[18], str[1]);
-	TextDrawSetString(TD_ArenaScoreboard[19], str[2]);
-	TextDrawSetString(TD_ArenaScoreboard[20], str[3]);
+    for (new i; i < 4; i ++){
+	    TextDrawSetString(TD_ArenaScoreboard[19 + i], str[i]);
+    }
 
     foreach(new i:ArenaPlayers)
     {
@@ -127,13 +141,13 @@ stock FinishArena()
     }
 
     KillTimer(arenaInfo[e_ArenaTimer]);
-    arenaInfo[e_ArenaTimer] = SetTimer("LaunchArena", 8500, false);
+    arenaInfo[e_ArenaTimer] = SetTimerEx("LaunchArena", 8500, false, "d", nextArena);
 }
 
-forward LaunchArena();
-public LaunchArena()
+forward LaunchArena(arenaid);
+public LaunchArena(arenaid)
 {
-    arenaInfo[e_ArenaId] = Iter_Random(Arenas);
+    arenaInfo[e_ArenaId] = arenaid;
     arenaInfo[e_ArenaMinutes] = DetermineArenaTime();
     arenaInfo[e_ArenaSeconds] = 30;
     arenaInfo[e_ArenaRunning] = true;
@@ -148,10 +162,8 @@ public LaunchArena()
 
         HideArenaScoreboard(i);
 
-        if (Iter_Contains(ArenaPlayers, i))
-        {
+        if (IsPlayerInArena(i)){
             SpawnPlayer(i);
-            SendClientMessage(i, COLOR_GRAY, "(info) Arena %s #%d has started", ArenaNames[arenaInfo[e_ArenaId]], arenaInfo[e_ArenaId]);
         }
     }
 }

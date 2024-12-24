@@ -5,7 +5,6 @@
 #include <a_mysql>
 #include <a_zone>
 #include <streamer>
-#include <samp_bcrypt>
 #include <YSF>
 #include <Pawn.RakNet>
 #include <Pawn.CMD>
@@ -32,6 +31,7 @@
 
 #include "modules/global/colors.inc"
 #include "modules/global/defines.inc"
+#include "modules/gunmenu/header.inc"
 #include "modules/global/variables.inc"
 
 #include "modules/arena/h_arena.inc"
@@ -43,15 +43,12 @@
 #include "modules/arena/functions.inc"
 #include "modules/arena/arena.inc"
 
+#include "modules/commands/header.inc"
 #include "modules/commands/commands.inc"
 #include "modules/commands/general.inc"
 #include "modules/commands/admin.inc"
 
-
-main()
-{
-    bcrypt_set_thread_limit(1);
-} 
+#include "modules/gunmenu/gunmenu.inc"
 
 public OnGameModeInit()
 {
@@ -89,9 +86,11 @@ public OnGameModeExit()
 public OnPlayerConnect(playerid)
 {
     InicializePlayer(playerid);
+    
     GetPlayerName(playerid, playerInfo[playerid][e_PlayerName], MAX_PLAYER_NAME + 1);
     GetPlayerIp(playerid, playerInfo[playerid][e_PlayerLastIp]);
-    ForceRequestClass(playerid);
+    
+    FixRequestClass(playerid);
     return true;
 }
 
@@ -109,6 +108,10 @@ public OnPlayerRequestClass(playerid, classid)
 
 public OnPlayerRequestSpawn(playerid)
 {
+    if (!playerInfo[playerid][e_PlayerLogged] || GetPVarInt(playerid, "alreadySpawned")){
+        return false;
+    }
+
     playerInfo[playerid][e_PlayerSkin] = GetPlayerSkin(playerid);
     return true;
 }
@@ -118,8 +121,12 @@ public OnPlayerDisconnect(playerid, reason)
     if (!playerInfo[playerid][e_PlayerLogged]){
         return false;
     }
+    
+    if (reason != 2){
+        SendClientMessageToAll(COLOR_GRAY, "%s has left the server", playerInfo[playerid][e_PlayerName]);
+    }
 
-    SendClientMessageToAll(COLOR_GRAY, "%s has left the server", playerInfo[playerid][e_PlayerName]);
+    SavePlayerAccount(playerid);
     return true;
 }
 
@@ -160,7 +167,7 @@ public OnPlayerText(playerid, text[])
         return false;
     }
 
-    SendClientMessageToAll(-1, "** %s (%d): %s", playerInfo[playerid][e_PlayerName], playerid, text);
+    SendClientMessageToAll(COLOR_GRAY, "%s (%d): %s", playerInfo[playerid][e_PlayerName], playerid, text);
     return false;
 }
 
@@ -168,10 +175,19 @@ public OnPlayerKeyStateChange(playerid, newkeys, oldkeys)
 {
     if (newkeys == KEY_CTRL_BACK)
     {
-        if (Iter_Contains(ArenaPlayers, playerid)){
+        if (IsPlayerInArena(playerid)){
             SpawnPlayer(playerid);
         }
     }
+
+    if (newkeys == 160 && !IsBulletWeapon(GetPlayerWeapon(playerid)) && !IsPlayerInAnyVehicle(playerid))
+    {
+        if (GetTickCount() - GetPVarInt(playerid, "resyncTick") >= 2500)
+        {
+            ResyncPlayer(playerid);
+            SetPVarInt(playerid, "resyncTick", GetTickCount());
+        }
+	}
 
     return true;
 }
@@ -182,10 +198,10 @@ public OnPlayerDeath(playerid, killerid, reason)
         return false;
     }
 
-    if (arenaInfo[e_ArenaRunning] && Iter_Contains(ArenaPlayers, killerid) && Iter_Contains(ArenaPlayers, playerid))
-    {
-        SetPlayerChatBubble(playerid, "{ccc793}Killed by: {ffffff}%s", -1, 30.0, 5000, playerInfo[killerid][e_PlayerName]);
-    
+    KillMessages(killerid, playerid);
+
+    if (arenaInfo[e_ArenaRunning] && IsPlayerInArena(killerid) && IsPlayerInArena(playerid))
+    {   
         playerArenaInfo[killerid][e_ArenaKills] ++;
         playerArenaInfo[playerid][e_ArenaDeaths] ++;
 
@@ -221,7 +237,7 @@ public OnPlayerDamage(&playerid, &Float:amount, &issuerid, &weapon, &bodypart)
 		}
 	}
     
-    if (arenaInfo[e_ArenaRunning] && Iter_Contains(ArenaPlayers, issuerid))
+    if (IsPlayerInArena(issuerid) && arenaInfo[e_ArenaRunning])
     {
         playerArenaInfo[issuerid][e_ArenaDamage] += floatround(amount);
     }
