@@ -123,10 +123,10 @@ stock FinishArena(nextArena)
 		{
 			new topId = TopPlayers[i];
             
-            format(str[0], sizeof str[], "%s%s~n~~n~", str[0], playerInfo[topId][e_PlayerName]);
-            format(str[1], sizeof str[], "%s%d~n~~n~", str[1], playerArenaInfo[topId][e_ArenaDamage]);
-            format(str[2], sizeof str[], "%s%d~n~~n~", str[2], playerArenaInfo[topId][e_ArenaKills]);
-            format(str[3], sizeof str[], "%s%.2f~n~~n~", str[3], floatdiv(playerArenaInfo[topId][e_ArenaKills], playerArenaInfo[topId][e_ArenaDeaths]));
+            format(str[0], sizeof str[], "%s%s~n~", str[0], playerInfo[topId][e_PlayerName]);
+            format(str[1], sizeof str[], "%s%d~n~", str[1], playerArenaInfo[topId][e_ArenaDamage]);
+            format(str[2], sizeof str[], "%s%d~n~", str[2], playerArenaInfo[topId][e_ArenaKills]);
+            format(str[3], sizeof str[], "%s%.2f~n~", str[3], floatdiv(playerArenaInfo[topId][e_ArenaKills], playerArenaInfo[topId][e_ArenaDeaths]));
 		}
 	}
 

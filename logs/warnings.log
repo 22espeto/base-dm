@@ -1,0 +1,1 @@
+[19:22:56] [plugins/mysql] mysql_connect_file: no password specified (D:\gms\base dm\gamemodes\base.pwn:56 -> D:\gms\base dm\pawno\include\sscanf2.inc:1066 -> D:\gms\base dm\pawno\include\indirection\indirection.inc:1585 -> D:\gms\base dm\pawno\include\weapon-config.inc:2843 -> D:\gms\base dm\pawno\include\YSI_Coding\y_inline\..\y_cgen\y_cgen_impl.inc:156)
